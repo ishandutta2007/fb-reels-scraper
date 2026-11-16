@@ -1,142 +1,156 @@
 // Background service worker for window, tab, and focus management
-let socket = null;
-let reconnectTimer = null;
+let bgSocket = null;
+let bgReconnectTimer = null;
 
-function connectBridge() {
-  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+function log(...args) {
+  console.log("[Background]", ...args);
+}
+
+// Bring a window to foreground and restore if minimized
+async function restoreAndFocusWindow(windowId) {
+  try {
+    const win = await chrome.windows.get(windowId);
+    if (win.state === "minimized") {
+      await chrome.windows.update(windowId, { state: "normal" });
+    }
+    await chrome.windows.update(windowId, { focused: true });
+    log("Window brought to focus successfully:", windowId);
+  } catch (err) {
+    log("Error focusing window:", err);
+  }
+}
+
+// Ensure the target URL is open, active, and window is focused
+async function handleEnsureTabAndFocus(targetUrl) {
+  try {
+    log("handleEnsureTabAndFocus requested for:", targetUrl);
+    const allTabs = await chrome.tabs.query({});
+    const normTarget = targetUrl ? targetUrl.split("?")[0].replace(/\/+$/, "").toLowerCase() : "";
+
+    let exactMatch = null;
+    let fbTab = null;
+
+    for (const t of allTabs) {
+      if (!t.url) continue;
+      const normUrl = t.url.split("?")[0].replace(/\/+$/, "").toLowerCase();
+      if (normTarget && normUrl === normTarget) {
+        exactMatch = t;
+        break;
+      }
+      if (t.url.includes("facebook.com")) {
+        if (!fbTab) fbTab = t;
+      }
+    }
+
+    if (exactMatch) {
+      log("Found exact match tab:", exactMatch.id, exactMatch.url);
+      await restoreAndFocusWindow(exactMatch.windowId);
+      await chrome.tabs.update(exactMatch.id, { active: true });
+      return { tabId: exactMatch.id, action: "focused" };
+    } else if (fbTab && targetUrl) {
+      log("Found existing FB tab:", fbTab.id, "- navigating to target:", targetUrl);
+      await restoreAndFocusWindow(fbTab.windowId);
+      await chrome.tabs.update(fbTab.id, { active: true, url: targetUrl });
+      return { tabId: fbTab.id, action: "navigated" };
+    } else if (targetUrl) {
+      log("No FB tab found. Opening a new tab for:", targetUrl);
+      const win = await chrome.windows.getLastFocused().catch(() => null);
+      if (win) {
+        await restoreAndFocusWindow(win.id);
+        const newTab = await chrome.tabs.create({
+          windowId: win.id,
+          url: targetUrl,
+          active: true
+        });
+        return { tabId: newTab.id, action: "created" };
+      } else {
+        const newWin = await chrome.windows.create({
+          url: targetUrl,
+          focused: true,
+          state: "normal"
+        });
+        return { tabId: newWin.tabs && newWin.tabs[0] ? newWin.tabs[0].id : null, action: "created_win" };
+      }
+    }
+  } catch (e) {
+    log("Error in handleEnsureTabAndFocus:", e);
+  }
+  return { success: false };
+}
+
+// Background connects directly to Python WebSocket server as well!
+function connectBackgroundBridge() {
+  if (bgSocket && (bgSocket.readyState === WebSocket.OPEN || bgSocket.readyState === WebSocket.CONNECTING)) {
     return;
   }
 
   try {
-    socket = new WebSocket("ws://127.0.0.1:8765");
+    bgSocket = new WebSocket("ws://127.0.0.1:8765");
 
-    socket.onopen = () => {
-      console.log("[Background] Connected to Python bridge server");
-      socket.send(JSON.stringify({
-        action: "background_handshake",
+    bgSocket.onopen = () => {
+      log("Connected to Python bridge server");
+      bgSocket.send(JSON.stringify({
+        action: "bg_handshake",
         type: "service_worker"
       }));
     };
 
-    socket.onmessage = async (event) => {
+    bgSocket.onmessage = async (event) => {
       try {
-        const msg = JSON.parse(event.data);
-        if (msg.action === "ensure_tab_focus") {
-          const targetUrl = msg.url;
-          await handleEnsureTabAndFocus(targetUrl);
-          socket.send(JSON.stringify({
+        const data = JSON.parse(event.data);
+        if (data.action === "ensure_tab_focus") {
+          const res = await handleEnsureTabAndFocus(data.url);
+          bgSocket.send(JSON.stringify({
             action: "ensure_tab_focus_result",
-            status: "ready",
-            url: targetUrl
+            result: res
           }));
         }
-      } catch (e) {
-        console.error("[Background] Error handling websocket message:", e);
+      } catch (err) {
+        log("Error handling message in background:", err);
       }
     };
 
-    socket.onclose = () => {
-      scheduleReconnect();
+    bgSocket.onclose = () => {
+      scheduleBgReconnect();
     };
 
-    socket.onerror = () => {
-      try { socket.close(); } catch (_) {}
+    bgSocket.onerror = () => {
+      try { bgSocket.close(); } catch (_) {}
     };
   } catch (e) {
-    scheduleReconnect();
+    scheduleBgReconnect();
   }
 }
 
-function scheduleReconnect() {
-  if (reconnectTimer) clearTimeout(reconnectTimer);
-  reconnectTimer = setTimeout(connectBridge, 3000);
+function scheduleBgReconnect() {
+  if (bgReconnectTimer) clearTimeout(bgReconnectTimer);
+  bgReconnectTimer = setTimeout(connectBackgroundBridge, 1500);
 }
 
-// Ensure the browser window is restored from minimized state and brought to foreground
-async function restoreAndFocusWindow(windowId) {
-  try {
-    const win = await chrome.windows.get(windowId);
-    const updateInfo = { focused: true };
-    if (win.state === "minimized") {
-      updateInfo.state = "normal";
-    }
-    await chrome.windows.update(windowId, updateInfo);
-  } catch (err) {
-    console.warn("[Background] Could not update window state:", err);
-  }
-}
+connectBackgroundBridge();
 
-// Bring tab to focus, un-minimize window, or open new tab if not present
-async function handleEnsureTabAndFocus(targetUrl) {
-  try {
-    // 1. Find all open tabs
-    const allTabs = await chrome.tabs.query({});
-    
-    // Look for tab matching targetUrl or any facebook.com tab
-    let matchingTab = null;
-    let fallbackFbTab = null;
-
-    for (const tab of allTabs) {
-      if (!tab.url) continue;
-      if (targetUrl && tab.url.includes(targetUrl.replace(/\/+$/, ""))) {
-        matchingTab = tab;
-        break;
-      }
-      if (tab.url.includes("facebook.com")) {
-        fallbackFbTab = tab;
-      }
-    }
-
-    const tabToUse = matchingTab || fallbackFbTab;
-
-    if (tabToUse) {
-      // Restore window from minimized state and focus it
-      await restoreAndFocusWindow(tabToUse.windowId);
-
-      // Activate tab and reload it
-      await chrome.tabs.update(tabToUse.id, { active: true, url: targetUrl || tabToUse.url });
-      await chrome.tabs.reload(tabToUse.id);
-    } else {
-      // No Facebook tab found, open a new one in the current or newly created window
-      const currentWin = await chrome.windows.getLastFocused().catch(() => null);
-      if (currentWin) {
-        await restoreAndFocusWindow(currentWin.id);
-        await chrome.tabs.create({
-          windowId: currentWin.id,
-          url: targetUrl || "https://www.facebook.com/",
-          active: true
-        });
-      } else {
-        await chrome.windows.create({
-          url: targetUrl || "https://www.facebook.com/",
-          focused: true,
-          state: "normal"
-        });
-      }
-    }
-  } catch (e) {
-    console.error("[Background] Error in handleEnsureTabAndFocus:", e);
-  }
-}
-
-// Listen to requests from content.js as well
+// Handle runtime messages from content scripts or popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === "FOCUS_TAB") {
+  if (request.type === "ENSURE_FOCUS_AND_NAVIGATE") {
+    handleEnsureTabAndFocus(request.targetUrl).then(result => {
+      sendResponse(result);
+    });
+    return true; // Keep message channel open for async response
+  } else if (request.type === "FOCUS_TAB") {
     const tabId = sender.tab ? sender.tab.id : null;
     const windowId = sender.tab ? sender.tab.windowId : null;
-
-    if (tabId !== null && windowId !== null) {
-      (async () => {
-        await restoreAndFocusWindow(windowId);
-        await chrome.tabs.update(tabId, { active: true });
-        sendResponse({ success: true });
-      })();
+    if (windowId !== null) {
+      restoreAndFocusWindow(windowId).then(() => {
+        if (tabId !== null) {
+          chrome.tabs.update(tabId, { active: true }).then(() => {
+            sendResponse({ success: true });
+          });
+        } else {
+          sendResponse({ success: true });
+        }
+      });
       return true;
-    } else {
-      sendResponse({ success: false, error: "Tab/Window not identifiable" });
     }
+    sendResponse({ success: false });
   }
 });
-
-// Start WebSocket connection in background service worker
-connectBridge();

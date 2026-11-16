@@ -1,18 +1,60 @@
 import asyncio
 import json
 import os
+import platform
+import subprocess
+import webbrowser
 from typing import Dict
 import websockets
 
 DATA_DIR = "scraped_data"
 CACHE_FILE = os.path.join(DATA_DIR, "reels_cache.json")
 
-# Global connection management
-active_tab_connection = None
-active_bg_connection = None
-tab_connection_event = asyncio.Event()
-bg_connection_event = asyncio.Event()
+# Store connected tab websockets: websocket -> tab_url
+tab_connections: Dict[websockets.WebSocketServerProtocol, str] = {}
+bg_connections = set()
+tab_connected_event = asyncio.Event()
+bg_connected_event = asyncio.Event()
 response_queue = asyncio.Queue()
+
+
+def restore_browser_window_os():
+    """Restores minimized browser windows to foreground."""
+    if platform.system() != "Windows":
+        return
+
+    ps_script = """
+Add-Type @"
+  using System;
+  using System.Runtime.InteropServices;
+  public class Win32 {
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    public static extern bool IsIconic(IntPtr hWnd);
+  }
+"@ -ErrorAction SilentlyContinue
+
+$browsers = @('chrome', 'msedge', 'brave', 'opera', 'firefox')
+Get-Process | Where-Object { $browsers -contains $_.ProcessName } | ForEach-Object {
+    if ($_.MainWindowHandle -ne 0) {
+        if ([Win32]::IsIconic($_.MainWindowHandle)) {
+            [Win32]::ShowWindowAsync($_.MainWindowHandle, 9)
+        }
+        [Win32]::SetForegroundWindow($_.MainWindowHandle)
+    }
+}
+"""
+    try:
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_script],
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            timeout=3,
+        )
+    except Exception:
+        pass
 
 
 def load_cache(cache_file: str = CACHE_FILE) -> Dict[str, str]:
@@ -39,9 +81,19 @@ def save_cache(cache: Dict[str, str], cache_file: str = CACHE_FILE):
         print(f"[!] Error writing to cache file: {e}")
 
 
+def is_url_match(tab_url: str, target_url: str) -> bool:
+    """Checks if a tab's URL matches the target Facebook reels URL."""
+    if not tab_url or not target_url:
+        return False
+    norm_tab = tab_url.split("?")[0].rstrip("/").lower()
+    norm_target = target_url.split("?")[0].rstrip("/").lower()
+    return norm_tab == norm_target or norm_tab.endswith(norm_target.replace("https://www.facebook.com", ""))
+
+
 async def ws_handler(websocket):
-    global active_tab_connection, active_bg_connection
-    is_bg_worker = False
+    global tab_connections, bg_connections
+    tab_url = ""
+    is_bg = False
 
     try:
         async for message in websocket:
@@ -51,86 +103,76 @@ async def ws_handler(websocket):
                 continue
 
             action = data.get("action")
-            if action == "background_handshake":
-                is_bg_worker = True
-                active_bg_connection = websocket
-                bg_connection_event.set()
-                print("\n[+] Extension background worker connected!")
+            if action == "bg_handshake":
+                is_bg = True
+                bg_connections.add(websocket)
+                bg_connected_event.set()
+                print("[+] Extension background service worker connected!")
             elif action == "handshake":
-                active_tab_connection = websocket
-                tab_connection_event.set()
-                print(f"\n[+] Connected to browser tab: {data.get('url')}")
+                tab_url = data.get("url", "")
+                tab_connections[websocket] = tab_url
+                tab_connected_event.set()
+                print(f"[+] Attached to tab: {tab_url}")
             else:
                 await response_queue.put(data)
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
-        if is_bg_worker or active_bg_connection == websocket:
-            active_bg_connection = None
-            bg_connection_event.clear()
-            print("[-] Background worker disconnected.")
-        if active_tab_connection == websocket:
-            active_tab_connection = None
-            tab_connection_event.clear()
-            print("[-] Tab disconnected (tab navigating / reloading).")
+        if is_bg or websocket in bg_connections:
+            bg_connections.discard(websocket)
+            if not bg_connections:
+                bg_connected_event.clear()
+        if websocket in tab_connections:
+            closed_url = tab_connections.pop(websocket)
+            print(f"[-] Tab closed/navigated away: {closed_url}")
+        if not tab_connections:
+            tab_connected_event.clear()
 
 
-async def get_active_tab_connection(timeout: float = 25.0):
-    """Waits for an open and active Facebook tab connection."""
+async def get_target_tab_connection(target_url: str = None, timeout: float = 30.0):
+    """Finds a live WebSocket connection specifically matching target_url."""
+    end_time = asyncio.get_event_loop().time() + timeout
+
+    while asyncio.get_event_loop().time() < end_time:
+        for ws, url in list(tab_connections.items()):
+            if not getattr(ws, "closed", False):
+                if target_url is None or is_url_match(url, target_url):
+                    return ws
+
+        try:
+            await asyncio.wait_for(tab_connected_event.wait(), timeout=1.0)
+        except asyncio.TimeoutError:
+            pass
+
+    for ws in list(tab_connections.keys()):
+        if not getattr(ws, "closed", False):
+            return ws
+
+    raise TimeoutError(f"Timed out waiting for connection on target URL: {target_url}")
+
+
+async def get_any_tab_connection(timeout: float = 25.0):
+    """Waits for any open Facebook tab connection."""
     end_time = asyncio.get_event_loop().time() + timeout
     while asyncio.get_event_loop().time() < end_time:
-        if active_tab_connection is not None:
-            try:
-                if not getattr(active_tab_connection, "closed", False):
-                    return active_tab_connection
-            except Exception:
-                pass
+        for ws in list(tab_connections.keys()):
+            if not getattr(ws, "closed", False):
+                return ws
         try:
-            await asyncio.wait_for(tab_connection_event.wait(), timeout=1.0)
-            if active_tab_connection is not None and not getattr(active_tab_connection, "closed", False):
-                return active_tab_connection
+            await asyncio.wait_for(tab_connected_event.wait(), timeout=1.0)
         except asyncio.TimeoutError:
-            continue
-    raise TimeoutError("Timed out waiting for Facebook tab to connect/reconnect.")
+            pass
+    raise TimeoutError("Timed out waiting for any Facebook tab to connect.")
 
 
-async def safe_send(payload: dict, timeout: float = 15.0):
-    """Safely sends payload to active tab, ensuring connection is alive."""
-    ws = await get_active_tab_connection(timeout=timeout)
+async def safe_send(ws, payload: dict):
+    """Safely sends payload on a websocket connection."""
     await ws.send(json.dumps(payload))
-
-
-async def ensure_browser_and_tab(target_url: str):
-    """Signals background worker to restore window from minimized, focus it, and activate/reload/open tab."""
-    print("[*] Requesting browser window restore and tab focus...")
-    # Give background worker up to 3 seconds to connect if not already
-    if active_bg_connection is None:
-        try:
-            await asyncio.wait_for(bg_connection_event.wait(), timeout=3.0)
-        except asyncio.TimeoutError:
-            pass
-
-    if active_bg_connection is not None and not getattr(active_bg_connection, "closed", False):
-        try:
-            await active_bg_connection.send(
-                json.dumps({"action": "ensure_tab_focus", "url": target_url})
-            )
-            print("[+] Sent focus & tab activation request to background worker.")
-        except Exception as e:
-            print(f"[!] Could not send focus request to background worker: {e}")
-    else:
-        # Fallback if background worker is not connected yet
-        try:
-            ws = await get_active_tab_connection(timeout=3.0)
-            await ws.send(json.dumps({"action": "focus_current_tab"}))
-        except Exception:
-            pass
 
 
 async def start_server(host="127.0.0.1", port=8765):
     server = await websockets.serve(ws_handler, host, port)
     print(f"[*] WebSocket bridge listening on ws://{host}:{port}")
-    print("[*] Waiting for browser extension...")
     return server
 
 
@@ -138,25 +180,53 @@ async def scrape_fb_reels(target_url: str = None, max_scrolls: int = 5, cache_fi
     cache = load_cache(cache_file)
     print(f"[*] Loaded {len(cache)} cached reel descriptions from {cache_file}")
 
-    # Ensure browser window is un-minimized, brought to foreground, and Facebook tab is active/reloaded
-    if target_url:
-        await ensure_browser_and_tab(target_url)
+    # Un-minimize browser window
+    restore_browser_window_os()
 
-    # Wait for the Facebook tab handshake
-    print("[*] Waiting for Facebook tab to attach...")
-    tab_connection_event.clear()
-    await get_active_tab_connection(timeout=30.0)
-    print("[*] Page attached! Waiting 5 seconds for page content to settle...")
-    await asyncio.sleep(5)
+    # Step 1: Check if an extension background or tab is already connected
+    print("[*] Checking for browser extension connection...")
+    
+    # Wait up to 2 seconds to see if anything connects
+    try:
+        await asyncio.wait_for(tab_connected_event.wait(), timeout=2.0)
+    except asyncio.TimeoutError:
+        pass
 
-    # Step 2: Scroll and collect reel links
+    # If background worker is connected, tell it to focus and open target_url
+    told_bg = False
+    for bg_ws in list(bg_connections):
+        if not getattr(bg_ws, "closed", False):
+            print(f"[*] Requesting background worker to focus and navigate to: {target_url}")
+            await safe_send(bg_ws, {"action": "ensure_tab_focus", "url": target_url})
+            told_bg = True
+            break
+
+    # If no background worker or tab responded, open directly via default browser
+    if not told_bg and not tab_connections:
+        print(f"[*] Opening {target_url or 'https://www.facebook.com/'} in browser...")
+        webbrowser.open(target_url or "https://www.facebook.com/")
+        restore_browser_window_os()
+
+    # Step 2: Now wait for the Facebook tab to attach
+    print(f"[*] Waiting for Facebook tab to attach ({target_url or 'any'})...")
+    tab_ws = await get_target_tab_connection(target_url=target_url, timeout=30.0)
+    print(f"[+] Successfully attached to tab: {tab_connections.get(tab_ws, '')}")
+
+    print("[*] Target reels page active. Waiting 4 seconds for video grid to settle...")
+    await asyncio.sleep(4)
+
+    # Step 3: Scroll and collect reel links
     all_reel_urls = set()
-    print(f"\n[*] Phase 1: Collecting reel links across {max_scrolls} scrolls...")
+    no_new_links_count = 0
+    print(f"\n[*] Phase 1: Collecting reel links across {max_scrolls} scrolls on {target_url or 'active tab'}...")
 
     for i in range(max_scrolls):
+        prev_count = len(all_reel_urls)
         print(f"[*] Requesting scroll & collect links ({i + 1}/{max_scrolls})...")
         try:
+            tab_ws = await get_target_tab_connection(target_url=target_url, timeout=10.0)
             await safe_send(
+                tab_ws,
                 {
                     "action": "scroll_and_collect_links",
                     "scrollIndex": i + 1,
@@ -169,9 +239,20 @@ async def scrape_fb_reels(target_url: str = None, max_scrolls: int = 5, cache_fi
                 found_urls = response_data.get("urls", [])
                 for u in found_urls:
                     all_reel_urls.add(u)
+                new_discovered = len(all_reel_urls) - prev_count
                 print(
-                    f"    -> Collected {len(found_urls)} links on page (Total unique: {len(all_reel_urls)})"
+                    f"    -> Collected {len(found_urls)} links on page (+{new_discovered} new, total unique: {len(all_reel_urls)})"
                 )
+
+                if new_discovered == 0:
+                    no_new_links_count += 1
+                    print(f"    [!] No new reel links found on this scroll ({no_new_links_count}/3 consecutive scrolls).")
+                else:
+                    no_new_links_count = 0
+
+                if no_new_links_count >= 3:
+                    print(f"[*] No new reel links discovered for 3 consecutive scrolls. Reached the end of the reels feed or dynamic loading finished. Skipping remaining scrolls.")
+                    break
         except asyncio.TimeoutError:
             print("[!] Timeout waiting for scroll response from browser.")
         except Exception as e:
@@ -186,7 +267,7 @@ async def scrape_fb_reels(target_url: str = None, max_scrolls: int = 5, cache_fi
     cached_count = len(all_reel_urls) - len(uncached_urls)
     print(f"[*] {cached_count} reels already in cache. {len(uncached_urls)} remaining to visit & extract.")
 
-    # Step 3: Visit each uncached reel link and extract the full description
+    # Step 4: Visit each uncached reel link and extract the full description
     if uncached_urls:
         print("\n[*] Phase 2: Visiting individual reel pages to extract full descriptions...")
 
@@ -194,12 +275,12 @@ async def scrape_fb_reels(target_url: str = None, max_scrolls: int = 5, cache_fi
         print(f"\n[{idx}/{len(uncached_urls)}] Visiting {reel_url}...")
 
         try:
-            tab_connection_event.clear()
-            await safe_send({"action": "navigate", "url": reel_url})
+            tab_ws = await get_any_tab_connection(timeout=15.0)
+            await safe_send(tab_ws, {"action": "navigate", "url": reel_url})
 
-            # Wait for extension to reconnect from the new page
+            # Wait for extension to reconnect from the new reel page
             print("    [*] Waiting for reel page to load...")
-            await get_active_tab_connection(timeout=15.0)
+            tab_ws = await get_target_tab_connection(target_url=reel_url, timeout=15.0)
 
             # Extra buffer for Facebook video player + comments to render
             await asyncio.sleep(4)
@@ -209,7 +290,7 @@ async def scrape_fb_reels(target_url: str = None, max_scrolls: int = 5, cache_fi
                 response_queue.get_nowait()
 
             # Request description extraction
-            await safe_send({"action": "extract_reel_description", "url": reel_url})
+            await safe_send(tab_ws, {"action": "extract_reel_description", "url": reel_url})
 
             resp = await asyncio.wait_for(response_queue.get(), timeout=15.0)
             if resp.get("action") == "extract_reel_result":

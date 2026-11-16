@@ -4,7 +4,8 @@
   "version": "1.0",
   "description": "Bridge extension to connect existing Facebook browser session with fb-reels-scraper.py",
   "permissions": [
-    "tabs"
+    "tabs",
+    "windows"
   ],
   "background": {
     "service_worker": "background.js"

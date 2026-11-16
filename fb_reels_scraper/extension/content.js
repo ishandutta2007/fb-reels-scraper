@@ -20,6 +20,15 @@
     });
   }
 
+  // Request background script to bring window to foreground, activate or open tab, and navigate to target URL
+  async function ensureFocusAndNavigate(targetUrl) {
+    return new Promise(resolve => {
+      chrome.runtime.sendMessage({ type: "ENSURE_FOCUS_AND_NAVIGATE", targetUrl: targetUrl }, response => {
+        resolve(response);
+      });
+    });
+  }
+
   // Collect reel links from the reels grid/listing page
   function extractReelLinks() {
     const urls = new Set();
@@ -62,7 +71,6 @@
     await new Promise(res => setTimeout(res, 500));
 
     // 2. Select potential description containers
-    // Facebook reel captions are typically rendered in dir="auto" elements or within data-ad-preview="message"
     const selectors = [
       'div[data-ad-preview="message"]',
       'div[dir="auto"]',
@@ -78,27 +86,21 @@
     const candidates = [];
 
     document.querySelectorAll(selectors.join(", ")).forEach(el => {
-      // Ignore if element is inside action buttons or navigation header
       if (el.closest('header, nav, ul, [role="navigation"]')) return;
 
       const txt = (el.innerText || "").trim();
       if (!txt || txt.length < 5) return;
 
       const lower = txt.toLowerCase();
-      // Skip common UI button strings and view counters
       const isBlacklisted = blacklistedPrefixes.some(prefix => lower.startsWith(prefix) || lower === prefix);
       if (isBlacklisted) return;
 
-      // Skip pure numeric / timestamp strings like "2d", "1.2K views"
       if (/^(\d+(\.\d+)?[KM]?\s*(views|likes|shares|comments)?|\d+[smhdw])$/i.test(lower)) return;
 
       candidates.push(txt);
     });
 
-    // Remove duplicates while keeping order
     const uniqueCandidates = Array.from(new Set(candidates));
-
-    // Longest element text block in the reel info column is usually the full description
     uniqueCandidates.sort((a, b) => b.length - a.length);
 
     return uniqueCandidates.length > 0 ? uniqueCandidates[0] : "";
@@ -115,6 +117,7 @@
       socket.onopen = () => {
         isConnected = true;
         updateStatus("Connected to Python scraper", true);
+        console.log("[Content] Connected to Python scraper on ws://127.0.0.1:8765");
         socket.send(JSON.stringify({
           action: "handshake",
           url: window.location.href,
@@ -127,13 +130,12 @@
           const message = JSON.parse(event.data);
 
           if (message.action === "scroll_and_collect_links") {
-            // Bring browser window to foreground and switch to this FB tab before scrolling
             await focusCurrentTab();
             await new Promise(r => setTimeout(r, 400));
 
             const reelUrls = extractReelLinks();
 
-            // Scroll down to trigger Facebook lazy-loading more reels
+            // Scroll down
             window.scrollTo(0, document.body.scrollHeight);
 
             socket.send(JSON.stringify({
@@ -142,6 +144,13 @@
               currentScroll: message.scrollIndex,
               maxScrolls: message.maxScrolls,
               url: window.location.href
+            }));
+          } else if (message.action === "ensure_focus_and_navigate") {
+            const res = await ensureFocusAndNavigate(message.url);
+            socket.send(JSON.stringify({
+              action: "ensure_focus_and_navigate_result",
+              result: res,
+              targetUrl: message.url
             }));
           } else if (message.action === "focus_current_tab") {
             await focusCurrentTab();
@@ -181,7 +190,7 @@
 
   function scheduleReconnect() {
     if (reconnectTimer) clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(connect, 3000);
+    reconnectTimer = setTimeout(connect, 2000);
   }
 
   // Connect on Facebook pages
