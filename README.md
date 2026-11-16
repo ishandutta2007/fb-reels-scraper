@@ -6,9 +6,12 @@
 
 <div align="center">
 
-[![PyPI version](https://img.shields.io/pypi/v/fb-reels-scraper.svg)](https://pypi.org/project/fb-reels-scraper/)
-[![Python versions](https://img.shields.io/pypi/pyversions/fb-reels-scraper.svg)](https://pypi.org/project/fb-reels-scraper/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<a href="https://github.com/ishandutta2007/Awesome-Awesome-Awesome"><img src="https://img.shields.io/badge/Awesome-%E2%9C%94-blueviolet?style=flat-square&logo=github" alt="Awesome"/></a>
+<a href="https://discord.gg/jc4xtF58Ve"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
+<a href="https://pypi.org/project/fb-reels-scraper/"><img src="https://img.shields.io/pypi/v/fb-reels-scraper.svg" alt="PyPI version" /></a>
+<a href="https://pypi.org/project/fb-reels-scraper/"><img src="https://img.shields.io/pypi/pyversions/fb-reels-scraper.svg" alt="Python versions" /></a>
+<a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+<a href="https://github.com/ishandutta2007"><img alt="GitHub followers" src="https://img.shields.io/github/followers/ishandutta2007?label=Follow" /></a>
 
 </div>
 
@@ -194,6 +197,22 @@ When you are ready to publish an update:
    git push origin main --tags
    ```
 3. GitHub Actions will automatically trigger, build the wheel and source tarball, and publish them to PyPI.
+
+---
+
+## 💖 Support & Sponsor
+
+Thank you for using and supporting this project! If this tool saved you time or helped in your workflow, please consider:
+- ⭐ **Starring** the repository on GitHub
+- 🍴 **Forking** and contributing features or improvements
+- 📢 **Sharing** it with friends and fellow developers
+- ☕ **Buying a coffee / Sponsoring** via the [GitHub Sponsors Dashboard](https://github.com/sponsors/ishandutta2007) to support continuous maintenance and new features.
+
+---
+
+## 📈 Star History
+
+[![Star History Chart](https://www.star-history.com/svg?repos=ishandutta2007/fb-reels-scraper&type=date&legend=top-left)](https://www.star-history.com/#ishandutta2007/fb-reels-scraper&type=date&legend=top-left)
 
 ---
 
