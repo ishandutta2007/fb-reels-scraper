@@ -148,6 +148,47 @@ Descriptions are saved to `reels_cache.json` in UTF-8 format:
 
 ---
 
+## 🚀 Publishing to PyPI
+
+This repository includes a GitHub Actions workflow ([.github/workflows/publish.yml](.github/workflows/publish.yml)) that automatically builds and publishes the package to PyPI whenever a new version tag is pushed.
+
+### 1. Configure PyPI Authentication (One-time Setup)
+You can authenticate via **Trusted Publishing (Recommended by PyPI)** or an **API Token**:
+
+- **Option A: Trusted Publishing (OIDC - Recommended)**:
+  1. Go to your project on [PyPI](https://pypi.org/manage/project/fb-reels-scraper/settings/publishing/) (or add a pending publisher before your first release).
+  2. Add a new publisher with:
+     - Owner: your GitHub username or organization (e.g. `ishan-kh`)
+     - Repository: `fb-reels-scraper`
+     - Workflow name: `publish.yml`
+     - Environment name: `pypi`
+
+- **Option B: PyPI API Token**:
+  1. Generate an API token on [PyPI Account Settings](https://pypi.org/manage/account/token/).
+  2. In your GitHub repository, navigate to **Settings** ➔ **Secrets and variables** ➔ **Actions**.
+  3. Create a secret named `PYPI_API_TOKEN` and paste your token value.
+
+### 2. Release a New Version
+When you are ready to publish an update:
+
+1. Bump the version in `pyproject.toml` and `fb_reels_scraper/__init__.py`:
+   ```python
+   # pyproject.toml
+   version = "1.0.1"
+
+   # fb_reels_scraper/__init__.py
+   __version__ = "1.0.1"
+   ```
+2. Commit the change, tag the release, and push to GitHub:
+   ```bash
+   git commit -am "Bump version to 1.0.1"
+   git tag v1.0.1
+   git push origin main --tags
+   ```
+3. GitHub Actions will automatically trigger, build the wheel and source tarball, and publish them to PyPI.
+
+---
+
 ## 🛡️ License
 
 This project is licensed under the [MIT License](LICENSE).
