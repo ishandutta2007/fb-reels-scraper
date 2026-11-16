@@ -143,6 +143,8 @@
               maxScrolls: message.maxScrolls,
               url: window.location.href
             }));
+          } else if (message.action === "focus_current_tab") {
+            await focusCurrentTab();
           } else if (message.action === "navigate") {
             if (message.url && window.location.href !== message.url) {
               window.location.href = message.url;
