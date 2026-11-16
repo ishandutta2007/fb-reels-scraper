@@ -1,60 +1,104 @@
-import time
-from playwright.sync_api import sync_playwright
+import asyncio
+import json
+import websockets
+
+# Global variable to store active client connection
+active_connection = None
+connection_event = asyncio.Event()
 
 
-def scrape_fb_reels_descriptions(profile_url: str, max_scrolls: int = 10):
+async def ws_handler(websocket):
+    global active_connection
+    active_connection = websocket
+    connection_event.set()
+    print(f"\n[+] Connected to browser extension session!")
+
+    try:
+        async for message in websocket:
+            data = json.loads(message)
+            action = data.get("action")
+            if action == "handshake":
+                print(f"[+] Attached to tab: {data.get('url')}")
+    except websockets.exceptions.ConnectionClosed:
+        print("\n[-] Browser extension disconnected.")
+    finally:
+        active_connection = None
+        connection_event.clear()
+
+
+async def start_server(host="127.0.0.1", port=8765):
+    server = await websockets.serve(ws_handler, host, port)
+    print(f"[*] WebSocket bridge listening on ws://{host}:{port}")
+    print("[*] Waiting for Facebook tab with the bridge extension active...")
+    return server
+
+
+async def scrape_fb_reels_descriptions(target_url: str = None, max_scrolls: int = 5):
     descriptions = set()
 
-    with sync_playwright() as p:
-        # Launch visible browser (headless=False helps avoid immediate bot detection)
-        browser = p.chromium.launch(headless=False)
-        context = browser.new_context(
-            viewport={"width": 1280, "height": 800},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    # Wait for the browser extension to connect
+    await connection_event.wait()
+    websocket = active_connection
+
+    if target_url:
+        print(f"[*] Sending target URL to browser: {target_url}")
+        await websocket.send(
+            json.dumps({"action": "navigate", "url": target_url})
         )
-        page = context.new_page()
+        print("[*] Waiting 5 seconds for page load...")
+        await asyncio.sleep(5)
 
-        print(f"Navigating to {profile_url}...")
-        page.goto(profile_url, wait_until="networkidle")
+    print(
+        f"[*] Starting scrape across {max_scrolls} scrolls on existing session..."
+    )
 
-        # Pause to allow manual login or closing the login popup if it appears
-        input(
-            "Log in or close any login popups in the browser, then press Enter here to start scraping..."
+    for i in range(max_scrolls):
+        print(f"[*] Requesting scroll & scrape ({i + 1}/{max_scrolls})...")
+        await websocket.send(
+            json.dumps(
+                {
+                    "action": "scroll_and_scrape",
+                    "scrollIndex": i + 1,
+                    "maxScrolls": max_scrolls,
+                }
+            )
         )
 
-        for i in range(max_scrolls):
-            print(f"Scrolling ({i + 1}/{max_scrolls})...")
+        # Wait for reply from the extension
+        response_raw = await websocket.recv()
+        response_data = json.loads(response_raw)
 
-            # Facebook Reel links typically contain '/reel/' in their href attribute
-            reel_links = page.locator("a[href*='/reel/']").all()
+        if response_data.get("action") == "scrape_result":
+            new_items = response_data.get("descriptions", [])
+            for item in new_items:
+                descriptions.add(item)
+            print(
+                f"    -> Extracted {len(new_items)} items on page (Total unique: {len(descriptions)})"
+            )
 
-            for link in reel_links:
-                # Facebook often places the caption/description inside aria-label or inner text
-                aria_label = link.get_attribute("aria-label")
-                inner_text = link.inner_text().strip()
-
-                # Filter out short UI labels like "Reels" or view counts
-                text_content = aria_label if aria_label else inner_text
-                if text_content and len(text_content) > 15:
-                    # Clean up newlines
-                    clean_text = " ".join(text_content.split())
-                    descriptions.add(clean_text)
-
-            # Scroll down to trigger loading of more reels
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            time.sleep(3)  # Wait for new content to load
-
-        browser.close()
+        # Sleep between scrolls to allow dynamic content rendering
+        await asyncio.sleep(3)
 
     return list(descriptions)
 
 
-if __name__ == "__main__":
+async def main():
+    server = await start_server()
+
     target_url = "https://www.facebook.com/nadeemkhancyber/reels/"
+    max_scrolls = 5
 
-    # Increase max_scrolls to fetch more reels from the page
-    results = scrape_fb_reels_descriptions(target_url, max_scrolls=5)
+    try:
+        results = await scrape_fb_reels_descriptions(
+            target_url=target_url, max_scrolls=max_scrolls
+        )
+        print(f"\nFound {len(results)} unique reel descriptions:\n")
+        for idx, desc in enumerate(results, 1):
+            print(f"{idx}. {desc}\n" + "-" * 40)
+    finally:
+        server.close()
+        await server.wait_closed()
 
-    print(f"\nFound {len(results)} unique reel descriptions:\n")
-    for idx, desc in enumerate(results, 1):
-        print(f"{idx}. {desc}\n" + "-" * 40)
+
+if __name__ == "__main__":
+    asyncio.run(main())
