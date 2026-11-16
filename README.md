@@ -185,15 +185,15 @@ When you are ready to publish an update:
 1. Bump the version in `pyproject.toml` and `fb_reels_scraper/__init__.py`:
    ```python
    # pyproject.toml
-   version = "1.0.2"
+   version = "1.0.3"
 
    # fb_reels_scraper/__init__.py
-   __version__ = "1.0.2"
+   __version__ = "1.0.3"
    ```
 2. Commit the change, tag the release, and push to GitHub:
    ```bash
-   git commit -am "Bump version to 1.0.2"
-   git tag v1.0.2
+   git commit -am "Bump version to 1.0.3"
+   git tag v1.0.3
    git push origin main --tags
    ```
 3. GitHub Actions will automatically trigger, build the wheel and source tarball, and publish them to PyPI.

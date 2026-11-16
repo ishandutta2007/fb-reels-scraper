@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fb-reels-scraper"
-version = "1.0.2"
+version = "1.0.3"
 description = "Scrape Facebook Reels descriptions using your existing browser session via a WebSocket bridge."
 readme = "README.md"
 authors = [
