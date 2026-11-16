@@ -4,7 +4,8 @@ import os
 from typing import Dict
 import websockets
 
-CACHE_FILE = "reels_cache.json"
+DATA_DIR = "scraped_data"
+CACHE_FILE = os.path.join(DATA_DIR, "reels_cache.json")
 
 # Global connection management
 active_tab_connection = None
@@ -29,6 +30,9 @@ def load_cache(cache_file: str = CACHE_FILE) -> Dict[str, str]:
 def save_cache(cache: Dict[str, str], cache_file: str = CACHE_FILE):
     """Saves cached reel descriptions."""
     try:
+        parent_dir = os.path.dirname(cache_file)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
         with open(cache_file, "w", encoding="utf-8") as f:
             json.dump(cache, f, indent=2, ensure_ascii=False)
     except Exception as e:

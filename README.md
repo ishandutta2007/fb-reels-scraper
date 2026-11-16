@@ -78,7 +78,7 @@ fb-reels-scraper
 fb-reels-scraper --user zuck
 
 # Short flag with custom scrolls and custom cache file
-fb-reels-scraper -u zuck -s 25 -c zuck_reels.json
+fb-reels-scraper -u zuck -s 25 -c scraped_data/zuck_reels.json
 ```
 
 ---
@@ -89,7 +89,7 @@ fb-reels-scraper -u zuck -s 25 -c zuck_reels.json
 |---|---|---|---|
 | `--user` | `-u` | `nadeemkhancyber` | Facebook username, handle, or page name (e.g. `zuck` or `nadeemkhancyber`) |
 | `--scrolls` | `-s` | `20` | Number of scroll cycles on the grid to harvest links |
-| `--cache-file` | `-c` | `reels_cache.json` | Path to JSON file where results are cached |
+| `--cache-file` | `-c` | `scraped_data/<user>_reels.json` | Path to JSON file where results are cached |
 | `--host` | | `127.0.0.1` | WebSocket server bind host |
 | `--port` | `-p` | `8765` | WebSocket server bind port |
 | `--install-extension` | | `./fb_reels_extension` | Export the bundled extension to a local directory for browser loading |

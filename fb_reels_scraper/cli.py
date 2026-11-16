@@ -20,6 +20,14 @@ def get_extension_path() -> str:
     return ext_path
 
 
+def get_default_cache_file(username: str) -> str:
+    """Returns default cache path under scraped_data/ based on username."""
+    safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in username.strip())
+    if not safe_name:
+        safe_name = "reels"
+    return os.path.join("scraped_data", f"{safe_name}_reels.json")
+
+
 def format_user_reels_url(user_input: str) -> str:
     """Constructs the Facebook reels URL from a username, page name, or URL."""
     cleaned = user_input.strip()
@@ -79,8 +87,8 @@ def main():
         "-c",
         dest="cache_file",
         type=str,
-        default="reels_cache.json",
-        help="Path to JSON cache file (default: reels_cache.json)",
+        default=None,
+        help="Path to JSON cache file (default: scraped_data/<username>_reels.json)",
     )
     parser.add_argument(
         "--host",
@@ -129,6 +137,8 @@ def main():
         sys.exit(0)
 
     target_url = format_user_reels_url(args.user)
+    if not args.cache_file:
+        args.cache_file = get_default_cache_file(args.user)
 
     try:
         asyncio.run(async_main(args, target_url))
