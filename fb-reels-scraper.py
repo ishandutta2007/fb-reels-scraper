@@ -217,7 +217,7 @@ async def main():
     server = await start_server()
 
     target_url = "https://www.facebook.com/nadeemkhancyber/reels/"
-    max_scrolls = 5
+    max_scrolls = 20
 
     try:
         cache = await scrape_fb_reels(target_url=target_url, max_scrolls=max_scrolls)
