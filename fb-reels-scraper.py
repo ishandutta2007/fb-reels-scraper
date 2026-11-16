@@ -74,7 +74,9 @@ async def get_active_connection(timeout: float = 20.0):
                 pass
         try:
             await asyncio.wait_for(connection_event.wait(), timeout=1.0)
-            if active_connection is not None and not getattr(active_connection, "closed", False):
+            if active_connection is not None and not getattr(
+                active_connection, "closed", False
+            ):
                 return active_connection
         except asyncio.TimeoutError:
             continue
@@ -153,11 +155,15 @@ async def scrape_fb_reels(target_url: str = None, max_scrolls: int = 5):
     # Filter out already cached URLs
     uncached_urls = [u for u in all_reel_urls if u not in cache or not cache[u]]
     cached_count = len(all_reel_urls) - len(uncached_urls)
-    print(f"[*] {cached_count} reels already in cache. {len(uncached_urls)} remaining to visit & extract.")
+    print(
+        f"[*] {cached_count} reels already in cache. {len(uncached_urls)} remaining to visit & extract."
+    )
 
     # Step 3: Visit each uncached reel link and extract the full description
     if uncached_urls:
-        print("\n[*] Phase 2: Visiting individual reel pages to extract full descriptions...")
+        print(
+            "\n[*] Phase 2: Visiting individual reel pages to extract full descriptions..."
+        )
 
     for idx, reel_url in enumerate(uncached_urls, 1):
         print(f"\n[{idx}/{len(uncached_urls)}] Visiting {reel_url}...")
@@ -188,7 +194,9 @@ async def scrape_fb_reels(target_url: str = None, max_scrolls: int = 5):
                 if desc:
                     cache[reel_url] = desc
                     save_cache(cache)
-                    print(f"    -> [SUCCESS] Extracted ({len(desc)} chars): {desc[:80]}...")
+                    print(
+                        f"    -> [SUCCESS] Extracted ({len(desc)} chars): {desc[:80]}..."
+                    )
                 else:
                     cache[reel_url] = "[No description found]"
                     save_cache(cache)
