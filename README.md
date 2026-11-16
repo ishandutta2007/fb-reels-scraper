@@ -42,7 +42,7 @@ pip install fb-reels-scraper
 
 ### Or from source (Editable mode)
 ```bash
-git clone https://github.com/ishan-kh/fb-reels-scraper.git
+git clone https://github.com/ishandutta2007/fb-reels-scraper.git
 cd fb-reels-scraper
 pip install -e .
 ```
@@ -169,7 +169,7 @@ You can authenticate via **Trusted Publishing (Recommended by PyPI)** or an **AP
 - **Option A: Trusted Publishing (OIDC - Recommended)**:
   1. Go to your project on [PyPI](https://pypi.org/manage/project/fb-reels-scraper/settings/publishing/) (or add a pending publisher before your first release).
   2. Add a new publisher with:
-     - Owner: your GitHub username or organization (e.g. `ishan-kh`)
+     - Owner: your GitHub username or organization (e.g. `ishandutta2007`)
      - Repository: `fb-reels-scraper`
      - Workflow name: `publish.yml`
      - Environment name: `pypi`
@@ -185,15 +185,15 @@ When you are ready to publish an update:
 1. Bump the version in `pyproject.toml` and `fb_reels_scraper/__init__.py`:
    ```python
    # pyproject.toml
-   version = "1.0.1"
+   version = "1.0.2"
 
    # fb_reels_scraper/__init__.py
-   __version__ = "1.0.1"
+   __version__ = "1.0.2"
    ```
 2. Commit the change, tag the release, and push to GitHub:
    ```bash
-   git commit -am "Bump version to 1.0.1"
-   git tag v1.0.1
+   git commit -am "Bump version to 1.0.2"
+   git tag v1.0.2
    git push origin main --tags
    ```
 3. GitHub Actions will automatically trigger, build the wheel and source tarball, and publish them to PyPI.

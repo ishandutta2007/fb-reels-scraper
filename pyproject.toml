@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fb-reels-scraper"
-version = "1.0.1"
+version = "1.0.2"
 description = "Scrape Facebook Reels descriptions using your existing browser session via a WebSocket bridge."
 readme = "README.md"
 authors = [
@@ -33,9 +33,9 @@ dependencies = [
 fb-reels-scraper = "fb_reels_scraper.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/ishan-kh/fb-reels-scraper"
-Repository = "https://github.com/ishan-kh/fb-reels-scraper"
-Issues = "https://github.com/ishan-kh/fb-reels-scraper/issues"
+Homepage = "https://github.com/ishandutta2007/fb-reels-scraper"
+Repository = "https://github.com/ishandutta2007/fb-reels-scraper"
+Issues = "https://github.com/ishandutta2007/fb-reels-scraper/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
