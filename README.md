@@ -1,8 +1,16 @@
-# FB Reels Scraper Bridge 🎬
+<div align="center">
+  <img src="assets/banner.svg" alt="FB Reels Scraper Banner" width="100%" />
+</div>
+
+<br/>
+
+<div align="center">
 
 [![PyPI version](https://img.shields.io/pypi/v/fb-reels-scraper.svg)](https://pypi.org/project/fb-reels-scraper/)
 [![Python versions](https://img.shields.io/pypi/pyversions/fb-reels-scraper.svg)](https://pypi.org/project/fb-reels-scraper/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+</div>
 
 A robust, two-stage Facebook Reels scraper that operates through your **existing browser session** via a lightweight Chrome/Edge extension and a local Python WebSocket bridge.
 
