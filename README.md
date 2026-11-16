@@ -60,14 +60,14 @@ fb-reels-scraper --install-extension
 2. In your terminal, run the CLI tool:
 
 ```bash
-# Run with default fallback URL and scroll count
+# Run with default fallback user (nadeemkhancyber) and scroll count (20)
 fb-reels-scraper
 
-# Scrape a specific profile or page
-fb-reels-scraper --url "https://www.facebook.com/<target_user_or_page>/reels/"
+# Scrape a specific user, page name, or handle
+fb-reels-scraper --user zuck
 
-# Specify scroll count and custom cache file (short flags)
-fb-reels-scraper -u "https://www.facebook.com/<target_user_or_page>/reels/" -s 25 -c my_reels.json
+# Short flag with custom scrolls and custom cache file
+fb-reels-scraper -u zuck -s 25 -c zuck_reels.json
 ```
 
 ---
@@ -76,7 +76,7 @@ fb-reels-scraper -u "https://www.facebook.com/<target_user_or_page>/reels/" -s 2
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
-| `--url` | `-u` | `https://www.facebook.com/nadeemkhancyber/reels/` | Facebook reels page URL to scrape |
+| `--user` | `-u` | `nadeemkhancyber` | Facebook username, handle, or page name (e.g. `zuck` or `nadeemkhancyber`) |
 | `--scrolls` | `-s` | `20` | Number of scroll cycles on the grid to harvest links |
 | `--cache-file` | `-c` | `reels_cache.json` | Path to JSON file where results are cached |
 | `--host` | | `127.0.0.1` | WebSocket server bind host |

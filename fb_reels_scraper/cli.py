@@ -20,12 +20,27 @@ def get_extension_path() -> str:
     return ext_path
 
 
-async def async_main(args):
+def format_user_reels_url(user_input: str) -> str:
+    """Constructs the Facebook reels URL from a username, page name, or URL."""
+    cleaned = user_input.strip()
+    # If the user already provided a full URL, ensure proper trailing structure
+    if cleaned.startswith("http://") or cleaned.startswith("https://"):
+        cleaned = cleaned.rstrip("/")
+        if not cleaned.endswith("/reels"):
+            cleaned += "/reels"
+        return cleaned + "/"
+
+    # Strip any leading '@' or extra slashes
+    username = cleaned.lstrip("@").strip("/")
+    return f"https://www.facebook.com/{username}/reels/"
+
+
+async def async_main(args, target_url: str):
     server = await start_server(host=args.host, port=args.port)
 
     try:
         cache = await scrape_fb_reels(
-            target_url=args.target_url,
+            target_url=target_url,
             max_scrolls=args.max_scrolls,
             cache_file=args.cache_file,
         )
@@ -44,12 +59,12 @@ def main():
         description="Scrape Facebook Reels descriptions via browser extension WebSocket bridge.",
     )
     parser.add_argument(
-        "--url",
+        "--user",
         "-u",
-        dest="target_url",
+        dest="user",
         type=str,
-        default="https://www.facebook.com/nadeemkhancyber/reels/",
-        help="Target Facebook reels URL (default: https://www.facebook.com/nadeemkhancyber/reels/)",
+        default="nadeemkhancyber",
+        help="Target Facebook username, page handle, or profile name (default: nadeemkhancyber)",
     )
     parser.add_argument(
         "--scrolls",
@@ -113,8 +128,10 @@ def main():
         print("[+] In your browser, visit chrome://extensions/ -> Load unpacked -> select this folder.")
         sys.exit(0)
 
+    target_url = format_user_reels_url(args.user)
+
     try:
-        asyncio.run(async_main(args))
+        asyncio.run(async_main(args, target_url))
     except KeyboardInterrupt:
         print("\n[!] Scraping cancelled by user.")
         sys.exit(0)
