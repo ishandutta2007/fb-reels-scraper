@@ -2,9 +2,10 @@ import asyncio
 import json
 import websockets
 
-# Global variable to store active client connection
+# Global variables to manage active client connection and incoming messages
 active_connection = None
 connection_event = asyncio.Event()
+response_queue = asyncio.Queue()
 
 
 async def ws_handler(websocket):
@@ -19,6 +20,9 @@ async def ws_handler(websocket):
             action = data.get("action")
             if action == "handshake":
                 print(f"[+] Attached to tab: {data.get('url')}")
+            else:
+                # Deliver any other responses (e.g. scrape_result) to the consumer
+                await response_queue.put(data)
     except websockets.exceptions.ConnectionClosed:
         print("\n[-] Browser extension disconnected.")
     finally:
@@ -60,9 +64,8 @@ async def scrape_fb_reels_descriptions(target_url: str = None, max_scrolls: int 
             )
         )
 
-        # Wait for reply from the extension
-        response_raw = await websocket.recv()
-        response_data = json.loads(response_raw)
+        # Wait for reply from the extension via queue
+        response_data = await asyncio.wait_for(response_queue.get(), timeout=20.0)
 
         if response_data.get("action") == "scrape_result":
             new_items = response_data.get("descriptions", [])
