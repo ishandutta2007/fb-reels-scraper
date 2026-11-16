@@ -53,24 +53,40 @@ pip install -r requirements.txt
 
 ---
 
-## 💻 Usage
+## 💻 Usage & CLI Options
 
 1. Open a Facebook tab in your browser where you are logged in.
-2. Open [fb-reels-scraper.py](file:///C:/Users/ishan/Documents/Projects/fb-reels-scraper/fb-reels-scraper.py) and configure your target URL and scroll count in `main()`:
-   ```python
-   target_url = "https://www.facebook.com/<target_user_or_page>/reels/"
-   max_scrolls = 5  # Number of scroll increments on the grid
-   ```
-3. Run the script:
-   ```bash
-   python fb-reels-scraper.py
-   ```
-4. **Execution Flow**:
-   - The Python script spins up a local WebSocket server at `ws://127.0.0.1:8765`.
-   - The extension connects automatically from your Facebook tab.
-   - The browser scrolls through the reels grid and gathers links.
-   - Any links not found in [reels_cache.json](file:///C:/Users/ishan/Documents/Projects/fb-reels-scraper/reels_cache.json) are visited sequentially to expand and extract full descriptions.
-   - Results are printed to stdout and saved in [reels_cache.json](file:///C:/Users/ishan/Documents/Projects/fb-reels-scraper/reels_cache.json).
+2. Run the script from your terminal:
+
+```bash
+# Run with default fallback values (default target profile + 20 scrolls)
+python fb-reels-scraper.py
+
+# Custom target profile or page
+python fb-reels-scraper.py --user "<target_user_or_page>"
+
+# Custom target and scroll count (short flags)
+python fb-reels-scraper.py -u "<target_user_or_page>" -s 15
+
+# View all CLI options
+python fb-reels-scraper.py --help
+```
+
+### Command-Line Arguments Reference
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--user` | `-u` | `nadeemkhancyber` | Facebook reels page URL to scrape |
+| `--scrolls` | `-s` | `20` | Number of scroll cycles on the grid to harvest links |
+| `--help` | `-h` | — | Display help text and usage instructions |
+
+### Execution Flow:
+1. The Python script starts a local WebSocket server at `ws://127.0.0.1:8765`.
+2. The browser extension connects automatically from your active Facebook tab.
+3. The tab navigates to the target reels URL and scrolls `-s` times to discover reel links.
+4. The script checks discovered URLs against [reels_cache.json](file:///C:/Users/ishan/Documents/Projects/fb-reels-scraper/reels_cache.json).
+5. Uncached links are visited one-by-one to expand and extract the full description.
+6. New descriptions are immediately written to cache and printed to the console.
 
 ---
 

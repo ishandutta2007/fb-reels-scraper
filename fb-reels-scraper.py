@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import json
 import os
@@ -214,10 +215,32 @@ async def scrape_fb_reels(target_url: str = None, max_scrolls: int = 5):
 
 
 async def main():
+    parser = argparse.ArgumentParser(
+        description="Scrape Facebook Reels descriptions via browser extension WebSocket bridge."
+    )
+    parser.add_argument(
+        "--user",
+        "-u",
+        dest="target_username",
+        type=str,
+        default="nadeemkhancyber",
+        help="Target Facebook username (default: nadeemkhancyber)",
+    )
+    parser.add_argument(
+        "--scrolls",
+        "-s",
+        dest="max_scrolls",
+        type=int,
+        default=20,
+        help="Number of times to scroll down to collect reels links (default: 20)",
+    )
+
+    args = parser.parse_args()
+
     server = await start_server()
 
-    target_url = "https://www.facebook.com/nadeemkhancyber/reels/"
-    max_scrolls = 20
+    target_url = f"https://www.facebook.com/{args.target_username}/reels/"
+    max_scrolls = args.max_scrolls
 
     try:
         cache = await scrape_fb_reels(target_url=target_url, max_scrolls=max_scrolls)
