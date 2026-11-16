@@ -11,6 +11,15 @@
     }).catch(() => {});
   }
 
+  // Request background script to focus window and activate this tab
+  async function focusCurrentTab() {
+    return new Promise(resolve => {
+      chrome.runtime.sendMessage({ type: "FOCUS_TAB" }, response => {
+        resolve(response);
+      });
+    });
+  }
+
   // Collect reel links from the reels grid/listing page
   function extractReelLinks() {
     const urls = new Set();
@@ -118,6 +127,10 @@
           const message = JSON.parse(event.data);
 
           if (message.action === "scroll_and_collect_links") {
+            // Bring browser window to foreground and switch to this FB tab before scrolling
+            await focusCurrentTab();
+            await new Promise(r => setTimeout(r, 400));
+
             const reelUrls = extractReelLinks();
 
             // Scroll down to trigger Facebook lazy-loading more reels

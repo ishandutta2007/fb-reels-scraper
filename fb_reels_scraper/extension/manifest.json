@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "FB Reels Scraper Bridge",
+  "version": "1.0",
+  "description": "Bridge extension to connect existing Facebook browser session with fb-reels-scraper.py",
+  "permissions": [
+    "tabs"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "FB Reels Bridge"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.facebook.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
