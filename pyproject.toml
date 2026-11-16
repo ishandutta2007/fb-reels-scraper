@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fb-reels-scraper"
+version = "1.0.0"
+description = "Scrape Facebook Reels descriptions using your existing browser session via a WebSocket bridge."
+readme = "README.md"
+authors = [
+    { name = "Ishan", email = "ishan@example.com" }
+]
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Utilities",
+]
+keywords = ["facebook", "reels", "scraper", "crawler", "browser-extension", "websocket"]
+requires-python = ">=3.8"
+dependencies = [
+    "websockets>=12.0",
+]
+
+[project.scripts]
+fb-reels-scraper = "fb_reels_scraper.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/ishan-kh/fb-reels-scraper"
+Repository = "https://github.com/ishan-kh/fb-reels-scraper"
+Issues = "https://github.com/ishan-kh/fb-reels-scraper/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fb_reels_scraper*"]
+
+[tool.setuptools.package-data]
+fb_reels_scraper = ["extension/*", "extension/**/*"]

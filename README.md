@@ -1,5 +1,9 @@
 # FB Reels Scraper Bridge 🎬
 
+[![PyPI version](https://img.shields.io/pypi/v/fb-reels-scraper.svg)](https://pypi.org/project/fb-reels-scraper/)
+[![Python versions](https://img.shields.io/pypi/pyversions/fb-reels-scraper.svg)](https://pypi.org/project/fb-reels-scraper/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A robust, two-stage Facebook Reels scraper that operates through your **existing browser session** via a lightweight Chrome/Edge extension and a local Python WebSocket bridge.
 
 By utilizing your real browser session, you completely bypass login hurdles, 2FA prompts, fingerprinting, and bot-detection challenges without needing credentials or headless automation drivers.
@@ -13,86 +17,127 @@ By utilizing your real browser session, you completely bypass login hurdles, 2FA
   1. **Phase 1 (Discovery & Harvest)**: Scrolls target profile or page reels feeds (`/reels/`) to collect reel permalinks.
   2. **Phase 2 (Deep Extraction)**: Navigates to individual reel view pages, automatically clicks **"See more"** / **"...more"** to un-truncate descriptions, and extracts the full caption text.
 - **Local Smart Caching (`reels_cache.json`)**: Automatically saves extracted reels on the fly. Re-running the script skips previously scraped URLs to save time and bandwidth.
+- **Bundled Chrome Extension**: Extension files are packaged directly inside the package and can be exported with a single CLI command (`fb-reels-scraper --install-extension`).
 - **Resilient WebSocket Bridge**: Gracefully handles page transitions, DOM reloads, and tab navigation events without throwing disconnect exceptions.
 
 ---
 
-## 📁 Project Structure
+## 📦 Installation
+
+### From PyPI
+```bash
+pip install fb-reels-scraper
+```
+
+### Or from source (Editable mode)
+```bash
+git clone https://github.com/ishan-kh/fb-reels-scraper.git
+cd fb-reels-scraper
+pip install -e .
+```
+
+---
+
+## 🚀 Quick Setup & Usage
+
+### Step 1: Export & Load the Browser Extension
+
+If installed via `pip`, you can export the bundled extension directory into your current working folder:
+```bash
+fb-reels-scraper --install-extension
+```
+*(Or check the internal extension path via `fb-reels-scraper --extension-path`)*
+
+1. Open your Chromium browser (Chrome, Brave, Edge, etc.) and go to `chrome://extensions/` (or `edge://extensions/`).
+2. Toggle on **Developer mode** in the top-right corner.
+3. Click **Load unpacked** and select the exported `./fb_reels_extension` folder (or `./extension` if running from source).
+
+---
+
+### Step 2: Open Facebook & Run the CLI
+
+1. Ensure you have an active Facebook tab open in your browser where you are logged in.
+2. In your terminal, run the CLI tool:
+
+```bash
+# Run with default fallback URL and scroll count
+fb-reels-scraper
+
+# Scrape a specific profile or page
+fb-reels-scraper --url "https://www.facebook.com/<target_user_or_page>/reels/"
+
+# Specify scroll count and custom cache file (short flags)
+fb-reels-scraper -u "https://www.facebook.com/<target_user_or_page>/reels/" -s 25 -c my_reels.json
+```
+
+---
+
+## 🛠️ CLI Options Reference
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--url` | `-u` | `https://www.facebook.com/nadeemkhancyber/reels/` | Facebook reels page URL to scrape |
+| `--scrolls` | `-s` | `20` | Number of scroll cycles on the grid to harvest links |
+| `--cache-file` | `-c` | `reels_cache.json` | Path to JSON file where results are cached |
+| `--host` | | `127.0.0.1` | WebSocket server bind host |
+| `--port` | `-p` | `8765` | WebSocket server bind port |
+| `--install-extension` | | `./fb_reels_extension` | Export the bundled extension to a local directory for browser loading |
+| `--extension-path` | | — | Print absolute path to the bundled extension directory |
+| `--help` | `-h` | — | Display help text and usage instructions |
+
+---
+
+## 🐍 Python Library Usage
+
+You can also import and use `fb-reels-scraper` programmatically in your own Python scripts:
+
+```python
+import asyncio
+from fb_reels_scraper import scrape_fb_reels, start_server
+
+async def main():
+    server = await start_server(host="127.0.0.1", port=8765)
+    try:
+        results = await scrape_fb_reels(
+            target_url="https://www.facebook.com/example/reels/",
+            max_scrolls=10,
+            cache_file="reels_cache.json"
+        )
+        print(f"Scraped {len(results)} reels!")
+    finally:
+        server.close()
+        await server.wait_closed()
+
+asyncio.run(main())
+```
+
+---
+
+## 📁 Repository Structure
 
 ```text
 fb-reels-scraper/
-├── extension/
-│   ├── manifest.json       # Chrome Extension (Manifest V3) definition
-│   ├── content.js          # Injected DOM script (handles scrolling, clicks & extraction)
-│   ├── popup.html          # Extension popup UI
-│   └── popup.js            # Status check for popup
-├── fb-reels-scraper.py     # Main Python script with WebSocket server & scraping loop
-├── reels_cache.json        # Auto-generated cache file storing scraped descriptions
-├── requirements.txt        # Python dependencies
+├── pyproject.toml               # Modern PEP 517/621 packaging metadata
+├── MANIFEST.in                  # Manifest including non-Python extension assets
+├── fb_reels_scraper/            # Core Python package
+│   ├── __init__.py
+│   ├── __main__.py              # python -m fb_reels_scraper support
+│   ├── cli.py                   # CLI entrypoint for fb-reels-scraper command
+│   ├── scraper.py               # WebSocket bridge & scraping logic
+│   └── extension/               # Bundled Chrome Extension (Manifest V3)
+│       ├── manifest.json
+│       ├── content.js
+│       ├── popup.html
+│       └── popup.js
+├── reels_cache.json             # Cached results
 └── README.md
 ```
 
 ---
 
-## 🚀 Getting Started
-
-### 1. Prerequisites
-- Python 3.8+
-- Any Chromium-based browser (Google Chrome, Brave, Microsoft Edge, Opera, etc.)
-
-### 2. Install Python Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Load the Browser Extension
-1. Open your browser and navigate to `chrome://extensions/` (or `edge://extensions/`).
-2. Toggle on **Developer mode** (in the top-right corner).
-3. Click **Load unpacked** and select the [extension/](file:///C:/Users/ishan/Documents/Projects/fb-reels-scraper/extension) directory from this repository.
-4. Pin the **FB Reels Scraper Bridge** icon if desired to view connection status.
-
----
-
-## 💻 Usage & CLI Options
-
-1. Open a Facebook tab in your browser where you are logged in.
-2. Run the script from your terminal:
-
-```bash
-# Run with default fallback values (default target profile + 20 scrolls)
-python fb-reels-scraper.py
-
-# Custom target profile or page
-python fb-reels-scraper.py --user "<target_user_or_page>"
-
-# Custom target and scroll count (short flags)
-python fb-reels-scraper.py -u "<target_user_or_page>" -s 15
-
-# View all CLI options
-python fb-reels-scraper.py --help
-```
-
-### Command-Line Arguments Reference
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--user` | `-u` | `nadeemkhancyber` | Facebook reels page URL to scrape |
-| `--scrolls` | `-s` | `20` | Number of scroll cycles on the grid to harvest links |
-| `--help` | `-h` | — | Display help text and usage instructions |
-
-### Execution Flow:
-1. The Python script starts a local WebSocket server at `ws://127.0.0.1:8765`.
-2. The browser extension connects automatically from your active Facebook tab.
-3. The tab navigates to the target reels URL and scrolls `-s` times to discover reel links.
-4. The script checks discovered URLs against [reels_cache.json](file:///C:/Users/ishan/Documents/Projects/fb-reels-scraper/reels_cache.json).
-5. Uncached links are visited one-by-one to expand and extract the full description.
-6. New descriptions are immediately written to cache and printed to the console.
-
----
-
 ## 💾 Cache Format
 
-Descriptions are continuously saved to `reels_cache.json` in UTF-8 format:
+Descriptions are saved to `reels_cache.json` in UTF-8 format:
 
 ```json
 {
@@ -101,10 +146,8 @@ Descriptions are continuously saved to `reels_cache.json` in UTF-8 format:
 }
 ```
 
-If you ever wish to re-scrape everything from scratch, simply delete `reels_cache.json`.
-
 ---
 
 ## 🛡️ License
 
-This project is licensed under the [MIT License](file:///C:/Users/ishan/Documents/Projects/fb-reels-scraper/LICENSE).
+This project is licensed under the [MIT License](LICENSE).

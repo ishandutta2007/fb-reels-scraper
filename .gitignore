@@ -7,3 +7,6 @@ __pycache__/
 contributors.txt
 node_modules
 temp_repo_clone
+dist/
+build/
+*.egg-info/
