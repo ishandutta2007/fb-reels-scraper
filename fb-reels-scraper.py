@@ -42,15 +42,11 @@ async def scrape_fb_reels_descriptions(target_url: str = None, max_scrolls: int 
 
     if target_url:
         print(f"[*] Sending target URL to browser: {target_url}")
-        await websocket.send(
-            json.dumps({"action": "navigate", "url": target_url})
-        )
+        await websocket.send(json.dumps({"action": "navigate", "url": target_url}))
         print("[*] Waiting 5 seconds for page load...")
         await asyncio.sleep(5)
 
-    print(
-        f"[*] Starting scrape across {max_scrolls} scrolls on existing session..."
-    )
+    print(f"[*] Starting scrape across {max_scrolls} scrolls on existing session...")
 
     for i in range(max_scrolls):
         print(f"[*] Requesting scroll & scrape ({i + 1}/{max_scrolls})...")
