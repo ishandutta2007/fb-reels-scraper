@@ -1,8 +1,6 @@
 *.bak
 *.bk
 *.env
-reels_cache*.json
-scraped_data/
 .cache
 __pycache__/
 contributors.txt
